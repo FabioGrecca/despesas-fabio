@@ -1,5 +1,9 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { supabase } from "./supabase.js";
+import { useState, useMemo, useEffect } from "react";
+import { createClient } from '@supabase/supabase-js';
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 // ─── HISTORICAL DATA (amostra representativa da planilha) ───────────────────
