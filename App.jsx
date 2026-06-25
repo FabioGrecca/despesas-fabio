@@ -67,6 +67,8 @@ export default function App() {
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [filterDateDe, setFilterDateDe] = useState("");
   const [filterDateAte, setFilterDateAte] = useState("");
+  const [sortBy, setSortBy] = useState("vencimento"); // fornecedor | vencimento | valor
+  const [sortDir, setSortDir] = useState("asc");       // asc | desc
   const [searchH, setSearchH] = useState("");
   const [filterYearH, setFilterYearH] = useState("Todos");
   const [sortH, setSortH] = useState("data_pagto");
@@ -263,14 +265,26 @@ export default function App() {
         if (filterValorMax && b.valor > parseFloat(filterValorMax)) return false;
         return true;
       })
-      .sort((a,b) => new Date(a.vencimento) - new Date(b.vencimento));
-  }, [bills, filterStatus, filterCat, filterForn, filterValorMin, filterValorMax, filterDateDe, filterDateAte]);
+      .sort((a,b) => {
+        let cmp;
+        if (sortBy === "fornecedor") cmp = String(a.fornecedor||"").localeCompare(String(b.fornecedor||""), "pt", {sensitivity:"base"});
+        else if (sortBy === "valor") cmp = (a.valor||0) - (b.valor||0);
+        else cmp = new Date(a.vencimento) - new Date(b.vencimento);
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+  }, [bills, filterStatus, filterCat, filterForn, filterValorMin, filterValorMax, filterDateDe, filterDateAte, sortBy, sortDir]);
 
   const hasExtraFilters = filterForn || filterValorMin || filterValorMax || filterDateDe || filterDateAte;
 
   const clearAllFilters = () => {
     setFilterStatus("todos"); setFilterCat("Todas");
     setFilterForn(""); setFilterValorMin(""); setFilterValorMax(""); setFilterDateDe(""); setFilterDateAte("");
+  };
+
+  // Clica na coluna: 1º clique ordena crescente; clicando de novo, inverte a direção
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortBy(col); setSortDir("asc"); }
   };
 
   // KPIs for bills
@@ -417,6 +431,17 @@ export default function App() {
                 {hasExtraFilters && (
                   <button onClick={clearAllFilters} style={{...S.btn("#7f1d1d33","#f87171"),fontSize:12}}>✕ Limpar</button>
                 )}
+                {/* Ordenação clicável */}
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:11,color:"#64748b",fontWeight:600}}>↕ Ordenar:</span>
+                  <div style={{display:"flex",gap:0,borderRadius:8,overflow:"hidden",border:"1px solid #334155"}}>
+                    {[{k:"fornecedor",label:"Fornecedor"},{k:"vencimento",label:"Vencimento"},{k:"valor",label:"Valor"}].map(o=>(
+                      <button key={o.k} onClick={()=>toggleSort(o.k)} title={`Ordenar por ${o.label} (${sortBy===o.k&&sortDir==="asc"?"crescente":"clique p/ inverter"})`} style={{padding:"8px 12px",border:"none",cursor:"pointer",fontSize:12,fontWeight:600,background:sortBy===o.k?"#1e3a5f":"#1e293b",color:sortBy===o.k?"#38bdf8":"#64748b",transition:"all 0.15s",display:"flex",alignItems:"center",gap:4}}>
+                        {o.label}{sortBy===o.k ? (sortDir==="asc"?" ↑":" ↓") : ""}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <span style={{fontSize:12,color:"#64748b",marginLeft:"auto"}}>{displayBills.length} conta{displayBills.length!==1?"s":""}</span>
               </div>
 
