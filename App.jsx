@@ -206,7 +206,25 @@ export default function App() {
   };
 
   const upsertBill = async (bill) => {
-    await supabase.from("contas_pagar").upsert(bill, { onConflict: "id" });
+    // Sanitiza o objeto para bater com as colunas/tipos da tabela contas_pagar.
+    // Datas vazias precisam virar null (Postgres rejeita string vazia em coluna date).
+    const row = {
+      id: bill.id,
+      fornecedor: bill.fornecedor || null,
+      categoria: bill.categoria || null,
+      valor: Number(bill.valor),
+      vencimento: bill.vencimento || null,
+      origem: bill.origem || null,
+      obs: bill.obs || null,
+      status: bill.status || "pendente",
+      pago_em: bill.pago_em || null,
+      valor_pago: bill.valor_pago != null && bill.valor_pago !== "" ? Number(bill.valor_pago) : null,
+    };
+    const { error } = await supabase.from("contas_pagar").upsert(row, { onConflict: "id" });
+    if (error) {
+      console.error("Erro ao gravar conta no Supabase:", error);
+      throw error;
+    }
   };
 
   const deleteBillFromDB = async (id) => {
@@ -221,6 +239,12 @@ export default function App() {
   const saveBill = async () => {
     if (!form.fornecedor || !form.valor || !form.vencimento) return;
     const bill = {...form, valor: parseFloat(String(form.valor).replace(/\./g,"").replace(",","."))};
+    try {
+      await upsertBill(bill);
+    } catch (e) {
+      alert("Não foi possível gravar a conta no Supabase. Tente novamente.");
+      return;
+    }
     const next = modal === "new" ? [...bills, bill] : bills.map(b => b.id === bill.id ? bill : b);
     await saveBills(next);
     closeModal();
