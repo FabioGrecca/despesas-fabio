@@ -38,7 +38,7 @@ const addMonths = (iso,n) => {
 const diffDays = (a) => { const d=new Date(a)-new Date(today()); return Math.round(d/86400000); };
 const fmtDate = (iso) => { if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
 
-const EMPTY_BILL = { id:"", fornecedor:"", categoria:"Moradia", valor:"", vencimento:"", origem:"", obs:"", status:"pendente", pago_em:"" };
+const EMPTY_BILL = { id:"", fornecedor:"", categoria:"Moradia", valor:"", vencimento:"", origem:"", obs:"", parcela:"", status:"pendente", pago_em:"" };
 
 // Converte um "bill" do app para uma linha compatível com a tabela contas_pagar.
 // Datas vazias precisam virar null (Postgres rejeita string vazia em coluna date)
@@ -51,6 +51,7 @@ const billToRow = (bill) => ({
   vencimento: bill.vencimento || null,
   origem: bill.origem || null,
   obs: bill.obs || null,
+  parcela: bill.parcela || null,
   status: bill.status || "pendente",
   pago_em: bill.pago_em || null,
   valor_pago: bill.valor_pago != null && bill.valor_pago !== "" ? Number(bill.valor_pago) : null,
@@ -362,7 +363,8 @@ export default function App() {
           valor: valorNum,
           origem: form.origem,
           vencimento: addMonths(form.vencimento, k-atual),
-          obs: `${k}/${total}`,
+          obs: form.obs,            // Nº DOC: mantém o que foi digitado
+          parcela: `${k}/${total}`, // parcela: campo separado
           status: "pendente",
           pago_em: "",
         });
@@ -729,6 +731,18 @@ export default function App() {
                           <span style={{background:(CAT_COLORS[b.categoria]||"#64748b")+"22",color:CAT_COLORS[b.categoria]||"#94a3b8",padding:"1px 7px",borderRadius:20,fontSize:11,fontWeight:600}}>{b.categoria}</span>
                           {b.origem && <span style={{marginLeft:8}}>{b.origem}</span>}
                         </div>
+                      </div>
+
+                      {/* Nº DOC */}
+                      <div style={{textAlign:"center",minWidth:80}}>
+                        <div style={{fontSize:11,color:"#64748b"}}>Nº DOC</div>
+                        <div style={{fontWeight:600,fontSize:12,color:b.obs?"#cbd5e1":"#475569",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={b.obs||""}>{b.obs||"—"}</div>
+                      </div>
+
+                      {/* Parcela */}
+                      <div style={{textAlign:"center",minWidth:64}}>
+                        <div style={{fontSize:11,color:"#64748b"}}>Parcela</div>
+                        <div style={{fontWeight:700,fontSize:12,color:b.parcela?"#38bdf8":"#475569"}}>{b.parcela||"—"}</div>
                       </div>
 
                       {/* Valor */}
@@ -1146,8 +1160,8 @@ export default function App() {
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {review.map((p,i)=>(
                 <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,background:"#0f172a",borderRadius:8,border:"1px solid #1e3a5f",padding:"10px 14px"}}>
-                  <span style={{background:"#1e3a5f",color:"#38bdf8",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,whiteSpace:"nowrap",minWidth:54,textAlign:"center"}}>{p.obs}</span>
-                  <span style={{flex:1,fontSize:13,color:"#e2e8f0"}}>{fmt(p.valor)}</span>
+                  <span style={{background:"#1e3a5f",color:"#38bdf8",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,whiteSpace:"nowrap",minWidth:54,textAlign:"center"}}>{p.parcela}</span>
+                  <span style={{flex:1,fontSize:13,color:"#e2e8f0"}}>{fmt(p.valor)}{p.obs && <span style={{color:"#64748b",fontSize:11,marginLeft:8}}>· {p.obs}</span>}</span>
                   <div>
                     <span style={{fontSize:11,color:"#64748b",marginRight:8}}>Vencimento</span>
                     <input type="date" value={p.vencimento} onChange={e=>updateParcelaVenc(i,e.target.value)}
