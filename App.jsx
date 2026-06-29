@@ -720,38 +720,41 @@ export default function App() {
                 {displayBills.map(b=>{
                   const sm = STATUS_META[b._status];
                   return (
-                    <div key={b.id} style={{...S.card,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",borderLeft:`3px solid ${sm.color}`,transition:"background 0.15s",padding:"14px 18px"}}>
+                    <div key={b.id} style={{...S.card,display:"grid",gridTemplateColumns:"96px minmax(150px,240px) 110px 72px 1fr 130px 130px auto",alignItems:"center",gap:14,borderLeft:`3px solid ${sm.color}`,transition:"background 0.15s",padding:"14px 18px"}}>
                       {/* Status badge */}
-                      <span style={{background:sm.bg,color:sm.color,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{sm.label}</span>
+                      <span style={{justifySelf:"start",background:sm.bg,color:sm.color,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{sm.label}</span>
 
                       {/* Main info */}
-                      <div style={{flex:1,minWidth:160}}>
-                        <div style={{fontWeight:700,fontSize:14,color:"#f1f5f9"}}>{b.fornecedor}</div>
-                        <div style={{fontSize:12,color:"#64748b",marginTop:2}}>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontWeight:700,fontSize:14,color:"#f1f5f9",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={b.fornecedor}>{b.fornecedor}</div>
+                        <div style={{fontSize:12,color:"#64748b",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                           <span style={{background:(CAT_COLORS[b.categoria]||"#64748b")+"22",color:CAT_COLORS[b.categoria]||"#94a3b8",padding:"1px 7px",borderRadius:20,fontSize:11,fontWeight:600}}>{b.categoria}</span>
                           {b.origem && <span style={{marginLeft:8}}>{b.origem}</span>}
                         </div>
                       </div>
 
                       {/* Nº DOC */}
-                      <div style={{textAlign:"center",minWidth:80}}>
+                      <div style={{textAlign:"left",minWidth:0}}>
                         <div style={{fontSize:11,color:"#64748b"}}>Nº DOC</div>
-                        <div style={{fontWeight:600,fontSize:12,color:b.obs?"#cbd5e1":"#475569",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={b.obs||""}>{b.obs||"—"}</div>
+                        <div style={{fontWeight:600,fontSize:12,color:b.obs?"#cbd5e1":"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={b.obs||""}>{b.obs||"—"}</div>
                       </div>
 
                       {/* Parcela */}
-                      <div style={{textAlign:"center",minWidth:64}}>
+                      <div style={{textAlign:"center"}}>
                         <div style={{fontSize:11,color:"#64748b"}}>Parcela</div>
                         <div style={{fontWeight:700,fontSize:12,color:b.parcela?"#38bdf8":"#475569"}}>{b.parcela||"—"}</div>
                       </div>
 
+                      {/* espaçador flexível: mantém Nº DOC/Parcela à esquerda e o cluster financeiro à direita */}
+                      <div/>
+
                       {/* Valor */}
-                      <div style={{textAlign:"right",minWidth:110}}>
+                      <div style={{textAlign:"right"}}>
                         <div style={{fontSize:18,fontWeight:800,color:"#34d399"}}>{fmt(b.valor)}</div>
                       </div>
 
                       {/* Vencimento */}
-                      <div style={{textAlign:"center",minWidth:100}}>
+                      <div style={{textAlign:"center"}}>
                         <div style={{fontSize:11,color:"#64748b"}}>Vencimento</div>
                         <div style={{fontWeight:700,fontSize:13,color:b._status==="vencido"?"#f87171":"#e2e8f0"}}>{fmtDate(b.vencimento)}</div>
                         {b._status!=="pago" && (
@@ -763,7 +766,7 @@ export default function App() {
                       </div>
 
                       {/* Actions */}
-                      <div style={{display:"flex",gap:6}}>
+                      <div style={{display:"flex",gap:6,justifySelf:"end"}}>
                         {b._status!=="pago"
                           ? <button onClick={()=>openPayModal(b)} style={{...S.btn("#064e3b","#34d399"),fontSize:12,padding:"6px 12px"}} title="Registrar pagamento">✓ Pagar</button>
                           : <button onClick={()=>markUnpaid(b.id)} style={{...S.btn("#1e293b","#64748b"),fontSize:12,padding:"6px 12px"}} title="Reabrir">↩ Reabrir</button>
