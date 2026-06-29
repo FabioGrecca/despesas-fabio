@@ -369,8 +369,24 @@ export default function App() {
   };
 
   // ── Filtered bills ────────────────────────────────────────────────────────
+  // Histórico (pré-2026) convertido para o formato de conta paga, para aparecer
+  // junto ao filtrar PAGOS. Não tem vencimento próprio, então usamos data_pagto.
+  const histAsBills = useMemo(() => HIST.map((h, i) => ({
+    id: `hist_${i+1}`,
+    fornecedor: h.fornecedor,
+    categoria: h.categoria,
+    valor: h.valor,
+    vencimento: h.data_pagto,
+    origem: h.origem || "",
+    obs: h.tipo || "",
+    status: "pago",
+    pago_em: h.data_pagto,
+  })), []);
+
   const displayBills = useMemo(() => {
-    return bills
+    // Ao filtrar PAGOS, inclui o histórico pré-2026; nos demais filtros, só as contas de 2026+.
+    const source = filterStatus === "pago" ? [...bills, ...histAsBills] : bills;
+    return source
       .map(b => ({...b, _status: statusOf(b), _diff: diffDays(b.vencimento)}))
       .filter(b => {
         if (filterStatus !== "todos" && b._status !== filterStatus) return false;
@@ -389,7 +405,7 @@ export default function App() {
         else cmp = new Date(a.vencimento) - new Date(b.vencimento);
         return sortDir === "asc" ? cmp : -cmp;
       });
-  }, [bills, filterStatus, filterCat, filterForn, filterValorMin, filterValorMax, filterDateDe, filterDateAte, sortBy, sortDir]);
+  }, [bills, histAsBills, filterStatus, filterCat, filterForn, filterValorMin, filterValorMax, filterDateDe, filterDateAte, sortBy, sortDir]);
 
   const hasExtraFilters = filterForn || filterValorMin || filterValorMax || filterDateDe || filterDateAte;
 
