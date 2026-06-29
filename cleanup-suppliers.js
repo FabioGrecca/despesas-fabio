@@ -145,7 +145,7 @@ function finish(suppliers, groups, singletons, choices) {
 
   if (arg === "--apply") {
     const choices = JSON.parse(fs.readFileSync(path.join(__dirname, "choices.json"), "utf8"));
-    groups.forEach((g, gi) => { printGroup(gi, g); console.log(`  -> mantém [${choices[gi + 1] || 1}]`); });
+    groups.forEach((g, gi) => { printGroup(gi, g); const c = choices[gi + 1]; console.log(`  -> ${c === 0 ? "mantém todos" : "mantém [" + (c || 1) + "]"}`); });
     finish(suppliers, groups, singletons, choices);
     return;
   }
