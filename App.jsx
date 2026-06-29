@@ -503,9 +503,13 @@ export default function App() {
     const map={};
     dashData.forEach(d=>{ const ym=d.date.slice(0,7); map[ym]=(map[ym]||0)+d.valor; });
     let entries=Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0]));
-    if(!dashDe && !dashAte){ const cur=today().slice(0,7); entries=entries.filter(([ym])=>ym<=cur).slice(-18); } // sem filtro: 18 meses até hoje
+    if(!dashDe && !dashAte){
+      const cur=today().slice(0,7);
+      if(dashStatus==="pendente") entries=entries.filter(([ym])=>ym>=cur).slice(0,18);  // a vencer: próximos 18 meses
+      else entries=entries.filter(([ym])=>ym<=cur).slice(-18);                          // demais: últimos 18 meses até hoje
+    }
     return entries.map(([ym,total])=>({mes:ym.slice(5,7)+"/"+ym.slice(2,4),total:Math.round(total)}));
-  },[dashData,dashDe,dashAte]);
+  },[dashData,dashDe,dashAte,dashStatus]);
 
   const catData = useMemo(()=>{
     const map={};
@@ -876,7 +880,7 @@ export default function App() {
             </div>
 
             <div style={{...S.card,marginBottom:20}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#64748b",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.05em"}}>Evolução Mensal {(!dashDe&&!dashAte)?"(18 meses)":"(período)"}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#64748b",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.05em"}}>Evolução Mensal {(dashDe||dashAte)?"(período)":(dashStatus==="pendente"?"(próximos 18 meses)":"(18 meses)")}</div>
               <ResponsiveContainer width="100%" height={210}>
                 <LineChart data={monthlyData} margin={{top:5,right:20,left:10,bottom:5}}>
                   <XAxis dataKey="mes" tick={{fill:"#64748b",fontSize:10}}/>
