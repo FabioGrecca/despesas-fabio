@@ -87,7 +87,7 @@ export default function App() {
   const [suppliers, setSuppliers] = useState([]);
   const [suppReady, setSuppReady] = useState(false);
   const [suppModal, setSuppModal] = useState(false);
-  const [suppForm, setSuppForm] = useState({nome:""});
+  const [suppForm, setSuppForm] = useState({nome:"", categoria:""});
   const [suppEdit, setSuppEdit] = useState(null);
   const [suppSearch, setSuppSearch] = useState("");
   const SEED_CATS = [{"nome":"Moradia"},{"nome":"Saúde"},{"nome":"Cartão de Crédito"},{"nome":"Pessoal"},{"nome":"Imóveis"},{"nome":"Veículos"},{"nome":"Educação"},{"nome":"Lazer"},{"nome":"Financeiro"},{"nome":"Negócios"},{"nome":"Transporte"},{"nome":"Impostos"},{"nome":"Comunicação"},{"nome":"Jurídico"},{"nome":"Outros"}];
@@ -231,15 +231,16 @@ export default function App() {
     if (!suppForm.nome.trim()) return;
     const exists = suppliers.find(s => s.nome.toLowerCase() === suppForm.nome.toLowerCase());
     if (exists) { alert("Fornecedor já cadastrado."); return; }
-    const newSupp = {nome:suppForm.nome.trim()};
+    const newSupp = {nome:suppForm.nome.trim(), categoria: suppForm.categoria || null};
     await supabase.from("fornecedores").insert(newSupp);
     await saveSuppliers([...suppliers, newSupp].sort((a,b)=>a.nome.localeCompare(b.nome)));
-    setSuppModal(false); setSuppForm({nome:""});
+    setSuppModal(false); setSuppForm({nome:"", categoria:""});
   };
 
   const updateSupplier = async () => {
-    await saveSuppliers(suppliers.map(s => s.nome === suppEdit ? {...suppForm} : s));
-    setSuppModal(false); setSuppEdit(null); setSuppForm({nome:""});
+    await supabase.from("fornecedores").update({categoria: suppForm.categoria || null}).eq("nome", suppEdit);
+    await saveSuppliers(suppliers.map(s => s.nome === suppEdit ? {...s, categoria: suppForm.categoria || ""} : s));
+    setSuppModal(false); setSuppEdit(null); setSuppForm({nome:"", categoria:""});
   };
 
   const deleteSupplier = async (nome) => {
@@ -250,7 +251,7 @@ export default function App() {
   };
 
   const openEditSupp = (s) => {
-    setSuppForm({nome:s.nome}); setSuppEdit(s.nome); setSuppModal(true);
+    setSuppForm({nome:s.nome, categoria: s.categoria || fornCategoria[s.nome] || ""}); setSuppEdit(s.nome); setSuppModal(true);
   };
 
   useEffect(() => {
@@ -830,7 +831,7 @@ export default function App() {
             <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
               <input placeholder="Buscar fornecedor..." value={suppSearch} onChange={e=>setSuppSearch(e.target.value)}
                 style={{...S.input,flex:1,minWidth:180}}/>
-              <button onClick={()=>{setSuppForm({nome:""});setSuppEdit(null);setSuppModal(true);}} style={S.btn("#38bdf8")}>＋ Novo Fornecedor</button>
+              <button onClick={()=>{setSuppForm({nome:"",categoria:""});setSuppEdit(null);setSuppModal(true);}} style={S.btn("#38bdf8")}>＋ Novo Fornecedor</button>
               <span style={{fontSize:12,color:"#64748b"}}>{suppliers.length} cadastrados</span>
             </div>
             <div style={{...S.card,padding:0,overflow:"hidden"}}>
@@ -838,6 +839,7 @@ export default function App() {
                 <thead>
                   <tr style={{background:"#0f172a"}}>
                     <th style={{padding:"10px 14px",textAlign:"left",color:"#64748b",fontWeight:600,borderBottom:"1px solid #334155"}}>Fornecedor</th>
+                    <th style={{padding:"10px 14px",textAlign:"left",color:"#64748b",fontWeight:600,borderBottom:"1px solid #334155"}}>Categoria</th>
                     <th style={{padding:"10px 14px",borderBottom:"1px solid #334155"}}></th>
                   </tr>
                 </thead>
@@ -847,6 +849,13 @@ export default function App() {
                       onMouseEnter={e=>e.currentTarget.style.background="#0f172a"}
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       <td style={{padding:"9px 14px",color:"#e2e8f0",fontWeight:600}}>{s.nome}</td>
+                      <td style={{padding:"9px 14px"}}>
+                        {(() => {
+                          const cat = s.categoria || fornCategoria[s.nome];
+                          if (!cat) return <span style={{color:"#475569"}}>—</span>;
+                          return <span style={{background:(CAT_COLORS[cat]||"#64748b")+"22",color:CAT_COLORS[cat]||"#94a3b8",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:600}}>{cat}{!s.categoria && <span style={{opacity:0.55,fontWeight:500}}> · auto</span>}</span>;
+                        })()}
+                      </td>
                       <td style={{padding:"9px 14px",textAlign:"right"}}>
                         <button onClick={()=>openEditSupp(s)} style={{...S.btn("#1e3a5f","#94a3b8"),fontSize:11,padding:"4px 10px"}}>✎ Editar</button>
                       </td>
@@ -977,6 +986,14 @@ export default function App() {
                 <div style={S.label}>Nome *</div>
                 <input style={S.input} value={suppForm.nome} onChange={e=>setSuppForm(f=>({...f,nome:e.target.value}))} placeholder="Nome do fornecedor" disabled={!!suppEdit}/>
               </div>
+              <div>
+                <div style={S.label}>Categoria</div>
+                <select style={S.input} value={suppForm.categoria} onChange={e=>setSuppForm(f=>({...f,categoria:e.target.value}))}>
+                  <option value="">Selecione...</option>
+                  {(cats.length > 0 ? cats : CATS).map(c2=><option key={c2.nome||c2} value={c2.nome||c2}>{c2.nome||c2}</option>)}
+                </select>
+                <div style={{fontSize:11,color:"#64748b",marginTop:6}}>Sugerida automaticamente ao lançar uma conta deste fornecedor (editável na hora).</div>
+              </div>
             </div>
             <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"space-between"}}>
               <div>{suppEdit && <button onClick={()=>deleteSupplier(suppEdit)} style={S.btn("#7f1d1d33","#f87171")}>Excluir</button>}</div>
@@ -1032,7 +1049,7 @@ export default function App() {
             <div style={{display:"grid",gap:14}}>
               <div>
                 <div style={S.label}>Fornecedor / Descrição *</div>
-                <select style={S.input} value={form.fornecedor} onChange={e=>{const forn=e.target.value; setForm(f=>({...f, fornecedor:forn, categoria: fornCategoria[forn] || f.categoria}));}}>
+                <select style={S.input} value={form.fornecedor} onChange={e=>{const forn=e.target.value; const supCat=suppliers.find(s=>s.nome===forn)?.categoria; setForm(f=>({...f, fornecedor:forn, categoria: supCat || fornCategoria[forn] || f.categoria}));}}>
                   <option value="">Selecione um fornecedor...</option>
                   {suppliers.map(s=><option key={s.nome} value={s.nome}>{s.nome}</option>)}
                 </select>
