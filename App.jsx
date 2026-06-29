@@ -528,7 +528,6 @@ export default function App() {
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {displayBills.map(b=>{
                   const sm = STATUS_META[b._status];
-                  const urgent = b._status==="vencido"||(b._status==="pendente"&&b._diff<=3);
                   return (
                     <div key={b.id} style={{...S.card,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",borderLeft:`3px solid ${sm.color}`,transition:"background 0.15s",padding:"14px 18px"}}>
                       {/* Status badge */}
@@ -551,7 +550,7 @@ export default function App() {
                       {/* Vencimento */}
                       <div style={{textAlign:"center",minWidth:100}}>
                         <div style={{fontSize:11,color:"#64748b"}}>Vencimento</div>
-                        <div style={{fontWeight:700,fontSize:13,color:urgent?"#f87171":"#e2e8f0"}}>{fmtDate(b.vencimento)}</div>
+                        <div style={{fontWeight:700,fontSize:13,color:b._status==="vencido"?"#f87171":"#e2e8f0"}}>{fmtDate(b.vencimento)}</div>
                         {b._status!=="pago" && (
                           <div style={{fontSize:11,color:b._diff<0?"#f87171":b._diff<=3?"#f59e0b":"#64748b"}}>
                             {b._diff<0 ? `${Math.abs(b._diff)}d atraso` : b._diff===0 ? "Hoje!" : `em ${b._diff}d`}
