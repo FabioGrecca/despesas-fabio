@@ -19,7 +19,7 @@ const { execSync } = require("child_process");
 const readline = require("readline");
 
 const APP = path.join(__dirname, "App.jsx");
-const THRESHOLD = 0.80;
+const THRESHOLD = 0.60;
 
 // ── 1. Lê o SEED_SUPPLIERS do App.jsx ───────────────────────────────────────
 function readSuppliers(src) {
@@ -74,13 +74,16 @@ function groupSimilar(suppliers) {
 function printGroup(gi, names) {
   console.log(`\nGrupo ${gi + 1}:`);
   names.forEach((n, i) => console.log(`  [${i + 1}] ${n}`));
+  console.log(`  [0] manter todos (não mesclar — use quando forem fornecedores diferentes)`);
 }
 
 // ── monta a lista final dada as escolhas (grupo -> índice 1-based) ──────────
 function buildFinal(groups, singletons, choices) {
   const kept = [];
   groups.forEach((g, gi) => {
-    const idx = (choices[gi + 1] || 1) - 1;
+    const c = choices[gi + 1];
+    if (c === 0) { kept.push(...g); return; }   // 0 = manter todos (não mesclar)
+    const idx = ((c || 1) - 1);
     kept.push(g[Math.max(0, Math.min(idx, g.length - 1))]);
   });
   const all = [...singletons, ...kept];
@@ -155,8 +158,8 @@ function finish(suppliers, groups, singletons, choices) {
     printGroup(gi, groups[gi]);
     let ans;
     do {
-      ans = (await ask(`Qual manter? (${groups[gi].map((_, i) => i + 1).join("/")}): `)).trim();
-    } while (!/^\d+$/.test(ans) || +ans < 1 || +ans > groups[gi].length);
+      ans = (await ask(`Qual manter? (${groups[gi].map((_, i) => i + 1).join("/")}/0=todos): `)).trim();
+    } while (!/^\d+$/.test(ans) || +ans < 0 || +ans > groups[gi].length);
     choices[gi + 1] = +ans;
   }
   rl.close();
