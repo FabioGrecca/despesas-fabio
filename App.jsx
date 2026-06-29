@@ -720,7 +720,7 @@ export default function App() {
                 {displayBills.map(b=>{
                   const sm = STATUS_META[b._status];
                   return (
-                    <div key={b.id} style={{...S.card,display:"grid",gridTemplateColumns:"96px minmax(150px,240px) 124px 72px 1fr 130px 130px auto",alignItems:"center",gap:14,borderLeft:`3px solid ${sm.color}`,transition:"background 0.15s",padding:"14px 18px"}}>
+                    <div key={b.id} style={{...S.card,display:"grid",gridTemplateColumns:"90px 2.2fr 1.2fr 0.8fr 1.2fr 1.1fr auto",alignItems:"center",gap:14,borderLeft:`3px solid ${sm.color}`,transition:"background 0.15s",padding:"14px 18px"}}>
                       {/* Status badge */}
                       <span style={{justifySelf:"start",background:sm.bg,color:sm.color,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{sm.label}</span>
 
@@ -744,9 +744,6 @@ export default function App() {
                         <div style={{fontSize:11,color:"#64748b"}}>Parcela</div>
                         <div style={{fontWeight:700,fontSize:12,color:b.parcela?"#38bdf8":"#475569"}}>{b.parcela||"—"}</div>
                       </div>
-
-                      {/* espaçador flexível: mantém Nº DOC/Parcela à esquerda e o cluster financeiro à direita */}
-                      <div/>
 
                       {/* Valor */}
                       <div style={{textAlign:"right"}}>
