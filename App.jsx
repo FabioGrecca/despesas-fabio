@@ -21,6 +21,22 @@ const fmtDate = (iso) => { if(!iso) return ""; const [y,m,d]=iso.split("-"); ret
 
 const EMPTY_BILL = { id:"", fornecedor:"", categoria:"Moradia", valor:"", vencimento:"", origem:"", obs:"", status:"pendente", pago_em:"" };
 
+// Converte um "bill" do app para uma linha compatível com a tabela contas_pagar.
+// Datas vazias precisam virar null (Postgres rejeita string vazia em coluna date)
+// e os valores numéricos precisam ser Number.
+const billToRow = (bill) => ({
+  id: String(bill.id),
+  fornecedor: bill.fornecedor || null,
+  categoria: bill.categoria || null,
+  valor: Number(bill.valor) || 0,
+  vencimento: bill.vencimento || null,
+  origem: bill.origem || null,
+  obs: bill.obs || null,
+  status: bill.status || "pendente",
+  pago_em: bill.pago_em || null,
+  valor_pago: bill.valor_pago != null && bill.valor_pago !== "" ? Number(bill.valor_pago) : null,
+});
+
 // ─── STATUS helpers ──────────────────────────────────────────────────────────
 function statusOf(bill) {
   if (bill.status === "pago") return "pago";
@@ -82,14 +98,20 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await window.storage.get("bills-v1");
-        if (r) {
-          setBills(JSON.parse(r.value));
+        const { data, error } = await supabase
+          .from("contas_pagar")
+          .select("*")
+          .order("vencimento", { ascending: true });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setBills(data);
         } else {
+          // Primeira carga: semeia a tabela com os dados da planilha.
+          await supabase.from("contas_pagar").upsert(SEED_BILLS.map(billToRow), { onConflict: "id" });
           setBills(SEED_BILLS);
-          await window.storage.set("bills-v1", JSON.stringify(SEED_BILLS));
         }
-      } catch (_) {
+      } catch (e) {
+        console.error("Falha ao carregar contas do Supabase, usando dados locais:", e);
         setBills(SEED_BILLS);
       }
       setStorageReady(true);
@@ -206,21 +228,7 @@ export default function App() {
   };
 
   const upsertBill = async (bill) => {
-    // Sanitiza o objeto para bater com as colunas/tipos da tabela contas_pagar.
-    // Datas vazias precisam virar null (Postgres rejeita string vazia em coluna date).
-    const row = {
-      id: bill.id,
-      fornecedor: bill.fornecedor || null,
-      categoria: bill.categoria || null,
-      valor: Number(bill.valor),
-      vencimento: bill.vencimento || null,
-      origem: bill.origem || null,
-      obs: bill.obs || null,
-      status: bill.status || "pendente",
-      pago_em: bill.pago_em || null,
-      valor_pago: bill.valor_pago != null && bill.valor_pago !== "" ? Number(bill.valor_pago) : null,
-    };
-    const { error } = await supabase.from("contas_pagar").upsert(row, { onConflict: "id" });
+    const { error } = await supabase.from("contas_pagar").upsert(billToRow(bill), { onConflict: "id" });
     if (error) {
       console.error("Erro ao gravar conta no Supabase:", error);
       throw error;
@@ -228,7 +236,8 @@ export default function App() {
   };
 
   const deleteBillFromDB = async (id) => {
-    await supabase.from("contas_pagar").delete().eq("id", id);
+    const { error } = await supabase.from("contas_pagar").delete().eq("id", id);
+    if (error) { console.error("Erro ao excluir conta no Supabase:", error); throw error; }
   };
 
   // ── Bill CRUD ─────────────────────────────────────────────────────────────
@@ -242,7 +251,7 @@ export default function App() {
     try {
       await upsertBill(bill);
     } catch (e) {
-      alert("Não foi possível gravar a conta no Supabase. Tente novamente.");
+      alert("Não foi possível gravar a conta no Supabase:\n" + (e?.message || e) + "\n\nVerifique se VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY estão configuradas.");
       return;
     }
     const next = modal === "new" ? [...bills, bill] : bills.map(b => b.id === bill.id ? bill : b);
@@ -252,6 +261,12 @@ export default function App() {
 
   const deleteBill = async (id) => {
     if (!confirm("Excluir esta conta?")) return;
+    try {
+      await deleteBillFromDB(id);
+    } catch (e) {
+      alert("Não foi possível excluir a conta no Supabase:\n" + (e?.message || e));
+      return;
+    }
     await saveBills(bills.filter(b => b.id !== id));
     if (modal) closeModal();
   };
