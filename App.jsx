@@ -720,7 +720,7 @@ export default function App() {
                 {displayBills.map(b=>{
                   const sm = STATUS_META[b._status];
                   return (
-                    <div key={b.id} style={{...S.card,display:"grid",gridTemplateColumns:"96px minmax(150px,240px) 110px 72px 1fr 130px 130px auto",alignItems:"center",gap:14,borderLeft:`3px solid ${sm.color}`,transition:"background 0.15s",padding:"14px 18px"}}>
+                    <div key={b.id} style={{...S.card,display:"grid",gridTemplateColumns:"96px minmax(150px,240px) 124px 72px 1fr 130px 130px auto",alignItems:"center",gap:14,borderLeft:`3px solid ${sm.color}`,transition:"background 0.15s",padding:"14px 18px"}}>
                       {/* Status badge */}
                       <span style={{justifySelf:"start",background:sm.bg,color:sm.color,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{sm.label}</span>
 
@@ -733,9 +733,9 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Nº DOC */}
+                      {/* Nº Documento */}
                       <div style={{textAlign:"left",minWidth:0}}>
-                        <div style={{fontSize:11,color:"#64748b"}}>Nº DOC</div>
+                        <div style={{fontSize:11,color:"#64748b",whiteSpace:"nowrap"}}>Nº Documento</div>
                         <div style={{fontWeight:600,fontSize:12,color:b.obs?"#cbd5e1":"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={b.obs||""}>{b.obs||"—"}</div>
                       </div>
 
