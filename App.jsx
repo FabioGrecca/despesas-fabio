@@ -146,24 +146,52 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     (async () => {
+      console.log("[bills] Iniciando carregamento das contas do Supabase…");
       try {
         const { data, error } = await supabase
           .from("contas_pagar")
           .select("*")
           .order("vencimento", { ascending: true });
         if (error) throw error;
+        console.log(`[bills] Registros encontrados no Supabase: ${data?.length ?? 0}`);
+
         if (data && data.length > 0) {
+          // Já existem dados: carrega normalmente do Supabase.
+          console.log("[bills] Tabela já populada — carregando do Supabase.");
           setBills(data);
         } else {
-          // Primeira carga: semeia a tabela com os dados da planilha.
-          await supabase.from("contas_pagar").upsert(SEED_BILLS.map(billToRow), { onConflict: "id" });
-          setBills(SEED_BILLS);
+          // Tabela vazia: semeia em lotes de 50 para evitar timeout/payload grande.
+          const rows = SEED_BILLS.map(billToRow);
+          const BATCH = 50;
+          const totalLotes = Math.ceil(rows.length / BATCH);
+          console.log(`[bills] Tabela vazia — semeando ${rows.length} contas em ${totalLotes} lotes de ${BATCH}…`);
+          for (let i = 0; i < rows.length; i += BATCH) {
+            const lote = rows.slice(i, i + BATCH);
+            const nLote = Math.floor(i / BATCH) + 1;
+            const { error: insErr } = await supabase
+              .from("contas_pagar")
+              .upsert(lote, { onConflict: "id" });
+            if (insErr) {
+              console.error(`[bills] Erro ao inserir lote ${nLote}/${totalLotes}:`, insErr);
+              throw insErr;
+            }
+            console.log(`[bills] Lote ${nLote}/${totalLotes} inserido (${lote.length} registros).`);
+          }
+          console.log("[bills] Seed concluído — relendo do Supabase para confirmar…");
+          const { data: seeded, error: reErr } = await supabase
+            .from("contas_pagar")
+            .select("*")
+            .order("vencimento", { ascending: true });
+          if (reErr) throw reErr;
+          console.log(`[bills] Total após seed: ${seeded?.length ?? 0} registros.`);
+          setBills(seeded && seeded.length > 0 ? seeded : SEED_BILLS);
         }
       } catch (e) {
-        console.error("Falha ao carregar contas do Supabase, usando dados locais:", e);
+        console.error("[bills] Falha ao carregar/semear contas do Supabase, usando dados locais:", e);
         setBills(SEED_BILLS);
       }
       setStorageReady(true);
+      console.log("[bills] storageReady = true");
     })();
   }, [session]);
 
