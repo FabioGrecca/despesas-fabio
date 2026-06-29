@@ -606,7 +606,6 @@ export default function App() {
             {/* KPI strip */}
             {(() => {
               const base = (filterDateDe||filterDateAte) ? displayBills : bills.map(b=>({...b,_status:statusOf(b)}));
-              const kpiTotal   = base.reduce((s,b)=>s+b.valor,0);
               const kpiVencidos= base.filter(b=>b._status==="vencido");
               const kpiAVencer = base.filter(b=>b._status==="pendente");
               // Pagos inclui o histórico pré-2026 (mesma regra do filtro PAGOS), respeitando o período DE/ATÉ.
@@ -614,6 +613,8 @@ export default function App() {
               const histInRange = histAsBills.filter(h => (!filterDateDe||h.vencimento>=filterDateDe) && (!filterDateAte||h.vencimento<=filterDateAte));
               const baseAlreadyHasHist = filterStatus==="pago" && (filterDateDe||filterDateAte);
               const kpiPagos = baseAlreadyHasHist ? base.filter(b=>b._status==="pago") : [...base.filter(b=>b._status==="pago"), ...histInRange];
+              // Total = soma de TODOS os títulos do período (a vencer + vencidos + pagos, incluindo o histórico)
+              const kpiTotal = kpiAVencer.reduce((s,b)=>s+b.valor,0) + kpiVencidos.reduce((s,b)=>s+b.valor,0) + kpiPagos.reduce((s,b)=>s+(b.valor_pago||b.valor),0);
               return (
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:20}}>
                   {[
