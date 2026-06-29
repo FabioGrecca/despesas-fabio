@@ -100,8 +100,15 @@ function writeApp(finalList) {
 function commitPush(before, after) {
   execSync("git add App.jsx suppliers-clean.json cleanup-suppliers.js", { cwd: __dirname, stdio: "inherit" });
   const msg = `chore: limpa fornecedores duplicados no SEED_SUPPLIERS (${before} -> ${after})\n\nRemove nomes duplicados/muito similares (Levenshtein > 80%) via cleanup-suppliers.js.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`;
-  execSync(`git -c user.name="Fabio Grecca" -c user.email="fgrecca@gmail.com" commit -m ${JSON.stringify(msg)}`, { cwd: __dirname, stdio: "inherit" });
-  execSync("git push origin main", { cwd: __dirname, stdio: "inherit" });
+  // Escreve a mensagem num arquivo temporário para preservar quebras de linha (evita escape do shell).
+  const msgFile = path.join(__dirname, ".commit-msg.tmp");
+  fs.writeFileSync(msgFile, msg);
+  try {
+    execSync(`git -c user.name="Fabio Grecca" -c user.email="fgrecca@gmail.com" commit -F ${JSON.stringify(msgFile)}`, { cwd: __dirname, stdio: "inherit" });
+    execSync("git push origin main", { cwd: __dirname, stdio: "inherit" });
+  } finally {
+    fs.unlinkSync(msgFile);
+  }
 }
 
 function finish(suppliers, groups, singletons, choices) {
