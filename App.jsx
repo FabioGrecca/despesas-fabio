@@ -447,6 +447,18 @@ export default function App() {
     pago_em: h.data_pagto,
   })), []);
 
+  // Categoria "padrão" de cada fornecedor = a mais usada nos lançamentos (HIST + contas).
+  // Usada para pré-preencher a categoria ao escolher o fornecedor (mas continua editável).
+  const fornCategoria = useMemo(() => {
+    const counts = {};
+    const add = (forn, cat) => { if (!forn || !cat) return; (counts[forn] = counts[forn] || {})[cat] = (counts[forn][cat] || 0) + 1; };
+    bills.forEach(b => add(b.fornecedor, b.categoria));
+    HIST.forEach(h => add(h.fornecedor, h.categoria));
+    const map = {};
+    for (const forn in counts) map[forn] = Object.entries(counts[forn]).sort((a,b)=>b[1]-a[1])[0][0];
+    return map;
+  }, [bills]);
+
   const displayBills = useMemo(() => {
     // Ao filtrar PAGOS, inclui o histórico pré-2026; nos demais filtros, só as contas de 2026+.
     const source = filterStatus === "pago" ? [...bills, ...histAsBills] : bills;
@@ -1020,7 +1032,7 @@ export default function App() {
             <div style={{display:"grid",gap:14}}>
               <div>
                 <div style={S.label}>Fornecedor / Descrição *</div>
-                <select style={S.input} value={form.fornecedor} onChange={e=>setForm(f=>({...f,fornecedor:e.target.value}))}>
+                <select style={S.input} value={form.fornecedor} onChange={e=>{const forn=e.target.value; setForm(f=>({...f, fornecedor:forn, categoria: fornCategoria[forn] || f.categoria}));}}>
                   <option value="">Selecione um fornecedor...</option>
                   {suppliers.map(s=><option key={s.nome} value={s.nome}>{s.nome}</option>)}
                 </select>
