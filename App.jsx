@@ -24,6 +24,17 @@ const today = () => {
   return `${d.getFullYear()}-${mm}-${dd}`;
 };
 const addDays = (d,n) => { const dt=new Date(d); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); };
+// Soma n meses a uma data ISO (YYYY-MM-DD) sem problemas de fuso; ajusta o dia ao último dia do mês quando necessário.
+const addMonths = (iso,n) => {
+  const [y,m,d] = String(iso).split("-").map(Number);
+  if (!y||!m||!d) return iso;
+  const tot = (m-1)+n;
+  const ny = y + Math.floor(tot/12);
+  const nm = ((tot%12)+12)%12;
+  const lastDay = new Date(ny, nm+1, 0).getDate();
+  const nd = Math.min(d, lastDay);
+  return `${ny}-${String(nm+1).padStart(2,"0")}-${String(nd).padStart(2,"0")}`;
+};
 const diffDays = (a) => { const d=new Date(a)-new Date(today()); return Math.round(d/86400000); };
 const fmtDate = (iso) => { if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
 
@@ -94,6 +105,8 @@ export default function App() {
   const [payModal, setPayModal] = useState(null); // null | bill_obj
   const [payForm, setPayForm] = useState({ data_pagto: "", valor_pago: "" });
   const [form, setForm] = useState(EMPTY_BILL);
+  const [parcela, setParcela] = useState({ on:false, atual:"1", total:"2" }); // toggle de parcelamento (modo "new")
+  const [review, setReview] = useState(null);   // null | array de parcelas geradas (tela de revisão)
   const [filterStatus, setFilterStatus] = useState("todos");
   const [filterCat, setFilterCat] = useState("Todas");
   const [filterForn, setFilterForn] = useState("");
@@ -319,13 +332,50 @@ export default function App() {
   };
 
   // ── Bill CRUD ─────────────────────────────────────────────────────────────
-  const openNew  = () => { setForm({...EMPTY_BILL, id: Date.now().toString(), vencimento: addDays(today(),7)}); setModal("new"); };
-  const openEdit = (b)  => { setForm({...b}); setModal("edit"); };
-  const closeModal = () => setModal(null);
+  const openNew  = () => { setForm({...EMPTY_BILL, id: Date.now().toString(), vencimento: addDays(today(),7)}); setParcela({on:false,atual:"1",total:"2"}); setReview(null); setModal("new"); };
+  const openEdit = (b)  => { setForm({...b}); setParcela({on:false,atual:"1",total:"2"}); setReview(null); setModal("edit"); };
+  const closeModal = () => { setModal(null); setReview(null); };
+
+  // Grava várias contas no Supabase em lotes (evita timeout/payload grande).
+  const upsertMany = async (rows) => {
+    const BATCH = 50;
+    for (let i=0;i<rows.length;i+=BATCH) {
+      const { error } = await supabase.from("contas_pagar").upsert(rows.slice(i,i+BATCH).map(billToRow), { onConflict:"id" });
+      if (error) { console.error("Erro ao gravar parcelas no Supabase:", error); throw error; }
+    }
+  };
 
   const saveBill = async () => {
     if (!form.fornecedor || !form.valor || !form.vencimento) return;
-    const bill = {...form, valor: parseFloat(String(form.valor).replace(/\./g,"").replace(",","."))};
+    const valorNum = parseFloat(String(form.valor).replace(/\./g,"").replace(",","."));
+
+    // ── Conta PARCELADA: gera as parcelas e abre a tela de revisão (não salva ainda) ──
+    if (modal === "new" && parcela.on) {
+      const atual = Math.max(1, parseInt(parcela.atual,10) || 1);
+      const total = parseInt(parcela.total,10) || 0;
+      if (total < atual) { alert("O total de parcelas deve ser maior ou igual à parcela atual."); return; }
+      const baseId = Date.now();
+      const parcelas = [];
+      for (let k=atual; k<=total; k++) {
+        parcelas.push({
+          ...EMPTY_BILL,
+          id: `${baseId}_${k}`,
+          fornecedor: form.fornecedor,
+          categoria: form.categoria,
+          valor: valorNum,
+          origem: form.origem,
+          vencimento: addMonths(form.vencimento, k-atual),
+          obs: `${k}/${total}`,
+          status: "pendente",
+          pago_em: "",
+        });
+      }
+      setReview(parcelas);   // abre a revisão
+      return;
+    }
+
+    // ── Conta simples (não parcelada): comportamento original ──
+    const bill = {...form, valor: valorNum};
     try {
       await upsertBill(bill);
     } catch (e) {
@@ -336,6 +386,21 @@ export default function App() {
     await saveBills(next);
     closeModal();
   };
+
+  // Confirma a revisão de parcelas: grava todas no Supabase e fecha.
+  const confirmParcelas = async () => {
+    try {
+      await upsertMany(review);
+    } catch (e) {
+      alert("Não foi possível gravar as parcelas no Supabase:\n" + (e?.message || e));
+      return;
+    }
+    await saveBills([...bills, ...review]);
+    setReview(null);
+    closeModal();
+  };
+
+  const updateParcelaVenc = (idx, venc) => setReview(rs => rs.map((r,i)=> i===idx ? {...r, vencimento: venc} : r));
 
   const deleteBill = async (id) => {
     if (!confirm("Excluir esta conta?")) return;
@@ -1036,9 +1101,45 @@ export default function App() {
                 </div>
               )}
               <div>
-                <div style={S.label}>Observação</div>
-                <input style={S.input} value={form.obs} onChange={e=>setForm(f=>({...f,obs:e.target.value}))} placeholder="Opcional"/>
+                <div style={S.label}>Nº DOC / Mês Ref.</div>
+                <input style={S.input} value={form.obs} onChange={e=>setForm(f=>({...f,obs:e.target.value}))} placeholder="Ex: NF-1234 ou Jan/2026"/>
               </div>
+
+              {/* ── Parcelamento (apenas ao criar) ── */}
+              {modal==="new" && (
+                <div style={{borderTop:"1px solid #334155",paddingTop:14}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={S.label}>É parcelado?</div>
+                    <div style={{display:"flex",gap:8}}>
+                      {[["não",false],["sim",true]].map(([lbl,val])=>(
+                        <button key={lbl} onClick={()=>setParcela(p=>({...p,on:val}))}
+                          style={{...S.btn(parcela.on===val?"#38bdf8":"#0f172a",parcela.on===val?"#0f172a":"#64748b"),padding:"6px 16px",textTransform:"capitalize"}}>
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {parcela.on && (
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:12}}>
+                      <div>
+                        <div style={S.label}>Parcela atual</div>
+                        <input style={S.input} type="number" min="1" value={parcela.atual}
+                          onChange={e=>setParcela(p=>({...p,atual:e.target.value}))} placeholder="Ex: 1"/>
+                      </div>
+                      <div>
+                        <div style={S.label}>Total de parcelas</div>
+                        <input style={S.input} type="number" min="1" value={parcela.total}
+                          onChange={e=>setParcela(p=>({...p,total:e.target.value}))} placeholder="Ex: 12"/>
+                      </div>
+                      <div style={{gridColumn:"1 / -1",fontSize:11,color:"#64748b"}}>
+                        Serão criadas {Math.max(0,(parseInt(parcela.total,10)||0)-(parseInt(parcela.atual,10)||1)+1)} parcela(s),
+                        com vencimento mês a mês e Nº DOC "{(parseInt(parcela.atual,10)||1)}/{(parseInt(parcela.total,10)||0)}", "{(parseInt(parcela.atual,10)||1)+1}/{(parseInt(parcela.total,10)||0)}"...
+                        Você poderá revisar antes de salvar.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"space-between"}}>
@@ -1048,9 +1149,38 @@ export default function App() {
               <div style={{display:"flex",gap:10}}>
                 <button onClick={closeModal} style={{...S.btn("#334155","#94a3b8")}}>Cancelar</button>
                 <button onClick={saveBill} style={S.btn("#38bdf8")}>
-                  {modal==="new"?"Adicionar":"Salvar"}
+                  {modal==="new" ? (parcela.on ? "Revisar parcelas →" : "Adicionar") : "Salvar"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════ MODAL Revisão de Parcelas ═══════════════════ */}
+      {review && (
+        <div style={{position:"fixed",inset:0,background:"#000000aa",zIndex:101,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>{if(e.target===e.currentTarget)setReview(null);}}>
+          <div style={{background:"#1e293b",borderRadius:16,padding:28,width:"100%",maxWidth:560,border:"1px solid #334155",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontSize:16,fontWeight:800,color:"#38bdf8",marginBottom:4}}>Revisar parcelas</div>
+            <div style={{fontSize:13,color:"#94a3b8",marginBottom:18}}>
+              {review.length} parcela{review.length!==1?"s":""} de <b style={{color:"#e2e8f0"}}>{form.fornecedor}</b> · {fmt(parseFloat(String(form.valor).replace(/\./g,"").replace(",",".")))} cada · ajuste as datas se precisar
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {review.map((p,i)=>(
+                <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,background:"#0f172a",borderRadius:8,border:"1px solid #1e3a5f",padding:"10px 14px"}}>
+                  <span style={{background:"#1e3a5f",color:"#38bdf8",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,whiteSpace:"nowrap",minWidth:54,textAlign:"center"}}>{p.obs}</span>
+                  <span style={{flex:1,fontSize:13,color:"#e2e8f0"}}>{fmt(p.valor)}</span>
+                  <div>
+                    <span style={{fontSize:11,color:"#64748b",marginRight:8}}>Vencimento</span>
+                    <input type="date" value={p.vencimento} onChange={e=>updateParcelaVenc(i,e.target.value)}
+                      style={{...S.input,width:"auto",display:"inline-block",padding:"6px 10px"}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:22,justifyContent:"space-between"}}>
+              <button onClick={()=>setReview(null)} style={{...S.btn("#334155","#94a3b8")}}>← Voltar</button>
+              <button onClick={confirmParcelas} style={S.btn("#34d399","#0f172a")}>Confirmar e salvar {review.length} parcela{review.length!==1?"s":""}</button>
             </div>
           </div>
         </div>
