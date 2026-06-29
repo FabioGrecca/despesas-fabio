@@ -1098,6 +1098,13 @@ export default function App() {
                     <option value="">Selecione...</option>
                     {(cats.length > 0 ? cats : CATS).map(c2=><option key={c2.nome||c2} value={c2.nome||c2}>{c2.nome||c2}</option>)}
                   </select>
+                  {form.fornecedor && (() => {
+                    const sug = suppliers.find(s=>s.nome===form.fornecedor)?.categoria || fornCategoria[form.fornecedor];
+                    if (!sug) return null;
+                    return sug === form.categoria
+                      ? <div style={{fontSize:11,color:"#34d399",marginTop:5}}>✓ Sugerida para este fornecedor</div>
+                      : <div style={{fontSize:11,color:"#64748b",marginTop:5}}>Sugerida: <span onClick={()=>setForm(f=>({...f,categoria:sug}))} style={{color:"#38bdf8",cursor:"pointer",fontWeight:700,textDecoration:"underline"}}>{sug}</span></div>;
+                  })()}
                 </div>
                 <div>
                   <div style={S.label}>Origem / Conta</div>
