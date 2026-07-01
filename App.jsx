@@ -104,11 +104,11 @@ export default function App() {
   const [storageReady, setStorageReady] = useState(false);
   const [modal, setModal] = useState(null); // null | "new" | bill_obj
   const [payModal, setPayModal] = useState(null); // null | bill_obj
-  const [payForm, setPayForm] = useState({ data_pagto: "", valor_pago: "" });
+  const [payForm, setPayForm] = useState({ data_pagto: "", valor_pago: "", origem: "" });
   const [form, setForm] = useState(EMPTY_BILL);
   const [parcela, setParcela] = useState({ on:false, atual:"1", total:"2" }); // toggle de parcelamento (modo "new")
   const [review, setReview] = useState(null);   // null | array de parcelas geradas (tela de revisão)
-  const [filterStatus, setFilterStatus] = useState("todos");
+  const [filterStatus, setFilterStatus] = useState("pendente");
   const [filterCat, setFilterCat] = useState("Todas");
   const [filterForn, setFilterForn] = useState("");
   const [filterValorMin, setFilterValorMin] = useState("");
@@ -118,6 +118,12 @@ export default function App() {
   const [filterDateAte, setFilterDateAte] = useState("");
   const [sortBy, setSortBy] = useState("vencimento"); // fornecedor | vencimento | valor
   const [sortDir, setSortDir] = useState("asc");       // asc | desc
+  // Ao entrar na aba, define a ordenação padrão: Pagos = pago mais novo → mais antigo;
+  // demais (pendente/vencido/todos) = vencimento mais próximo → mais longe.
+  useEffect(() => {
+    if (filterStatus === "pago") { setSortBy("pago_em"); setSortDir("desc"); }
+    else { setSortBy("vencimento"); setSortDir("asc"); }
+  }, [filterStatus]);
   const [dashDe, setDashDe] = useState("");            // filtro de data do Dashboard
   const [dashAte, setDashAte] = useState("");
   const [dashStatus, setDashStatus] = useState("todos"); // todos | pendente | vencido | pago
@@ -415,13 +421,13 @@ export default function App() {
   };
 
   const openPayModal = (bill) => {
-    setPayForm({ data_pagto: today(), valor_pago: String(bill.valor) });
+    setPayForm({ data_pagto: today(), valor_pago: String(bill.valor), origem: bill.origem || "" });
     setPayModal(bill);
   };
 
   const confirmPay = async () => {
-    if (!payForm.data_pagto || !payForm.valor_pago) return;
-    const updated = {...payModal, status:"pago", pago_em: payForm.data_pagto, valor_pago: parseFloat(payForm.valor_pago)};
+    if (!payForm.data_pagto || !payForm.valor_pago || !payForm.origem.trim()) return;
+    const updated = {...payModal, status:"pago", pago_em: payForm.data_pagto, valor_pago: parseFloat(payForm.valor_pago), origem: payForm.origem.trim()};
     await upsertBill(updated);
     await saveBills(bills.map(b => b.id === payModal.id ? updated : b));
     setPayModal(null);
@@ -460,6 +466,14 @@ export default function App() {
     return map;
   }, [bills]);
 
+  // Bancos/contas já usados (para autocompletar no registro de pagamento).
+  const bancosUsados = useMemo(() => {
+    const set = new Set();
+    bills.forEach(b => b.origem && set.add(b.origem));
+    HIST.forEach(h => h.origem && set.add(h.origem));
+    return [...set].sort((a,b) => String(a).localeCompare(String(b), "pt", {sensitivity:"base"}));
+  }, [bills]);
+
   const displayBills = useMemo(() => {
     // Ao filtrar PAGOS, inclui o histórico pré-2026; nos demais filtros, só as contas de 2026+.
     const source = filterStatus === "pago" ? [...bills, ...histAsBills] : bills;
@@ -479,6 +493,7 @@ export default function App() {
         let cmp;
         if (sortBy === "fornecedor") cmp = String(a.fornecedor||"").localeCompare(String(b.fornecedor||""), "pt", {sensitivity:"base"});
         else if (sortBy === "valor") cmp = (a.valor||0) - (b.valor||0);
+        else if (sortBy === "pago_em") cmp = new Date(a.pago_em||a.vencimento) - new Date(b.pago_em||b.vencimento);
         else cmp = new Date(a.vencimento) - new Date(b.vencimento);
         return sortDir === "asc" ? cmp : -cmp;
       });
@@ -687,7 +702,7 @@ export default function App() {
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span style={{fontSize:11,color:"#64748b",fontWeight:600}}>↕ Ordenar:</span>
                   <div style={{display:"flex",gap:0,borderRadius:8,overflow:"hidden",border:"1px solid #334155"}}>
-                    {[{k:"fornecedor",label:"Fornecedor"},{k:"vencimento",label:"Vencimento"},{k:"valor",label:"Valor"}].map(o=>(
+                    {[...(filterStatus==="pago"?[{k:"pago_em",label:"Data pgto"}]:[]),{k:"fornecedor",label:"Fornecedor"},{k:"vencimento",label:"Vencimento"},{k:"valor",label:"Valor"}].map(o=>(
                       <button key={o.k} onClick={()=>toggleSort(o.k)} title={`Ordenar por ${o.label} (${sortBy===o.k&&sortDir==="asc"?"crescente":"clique p/ inverter"})`} style={{padding:"8px 12px",border:"none",cursor:"pointer",fontSize:12,fontWeight:600,background:sortBy===o.k?"#1e3a5f":"#1e293b",color:sortBy===o.k?"#38bdf8":"#64748b",transition:"all 0.15s",display:"flex",alignItems:"center",gap:4}}>
                         {o.label}{sortBy===o.k ? (sortDir==="asc"?" ↑":" ↓") : ""}
                       </button>
@@ -1017,6 +1032,13 @@ export default function App() {
               <div>
                 <div style={S.label}>Data do Pagamento</div>
                 <input style={S.input} type="date" value={payForm.data_pagto} onChange={e=>setPayForm(f=>({...f,data_pagto:e.target.value}))}/>
+              </div>
+              <div>
+                <div style={S.label}>Banco / Conta usada *</div>
+                <input style={S.input} list="bancos-list" value={payForm.origem} onChange={e=>setPayForm(f=>({...f,origem:e.target.value}))} placeholder="Ex: itaú, bradesco, C6"/>
+                <datalist id="bancos-list">
+                  {bancosUsados.map(o=><option key={o} value={o}/>)}
+                </datalist>
               </div>
               <div>
                 <div style={S.label}>Valor Pago (R$)</div>
