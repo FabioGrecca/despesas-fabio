@@ -15,6 +15,12 @@ create table if not exists fornecedores (
   nome text not null unique
 );
 
+-- 2b. CONTAS BANCÁRIAS (bancos/contas usados para pagar)
+create table if not exists contas_bancarias (
+  id   bigint generated always as identity primary key,
+  nome text not null unique
+);
+
 -- 3. CONTAS A PAGAR
 create table if not exists contas_pagar (
   id         text primary key,
@@ -37,10 +43,12 @@ create index if not exists idx_contas_categoria  on contas_pagar(categoria);
 create index if not exists idx_contas_fornecedor on contas_pagar(fornecedor);
 
 -- ── Row Level Security (acesso público por ora) ──
-alter table categorias   enable row level security;
-alter table fornecedores enable row level security;
-alter table contas_pagar enable row level security;
+alter table categorias       enable row level security;
+alter table fornecedores     enable row level security;
+alter table contas_bancarias enable row level security;
+alter table contas_pagar     enable row level security;
 
-create policy "allow_all_categorias"   on categorias   for all using (true) with check (true);
-create policy "allow_all_fornecedores" on fornecedores for all using (true) with check (true);
-create policy "allow_all_contas"       on contas_pagar for all using (true) with check (true);
+create policy "allow_all_categorias"       on categorias       for all using (true) with check (true);
+create policy "allow_all_fornecedores"     on fornecedores     for all using (true) with check (true);
+create policy "allow_all_contas_bancarias" on contas_bancarias for all using (true) with check (true);
+create policy "allow_all_contas"           on contas_pagar     for all using (true) with check (true);
